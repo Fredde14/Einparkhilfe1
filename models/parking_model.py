@@ -12,7 +12,7 @@ class ParkingAI:
             self.model_name = "YOLOv8m (High-Precision + Color)"
         except Exception:
             try:
-                from ultralytics::YOLO import YOLO
+                from ultralytics import YOLO
                 self.model = YOLO("yolov8n.pt")
                 self.model_name = "YOLOv8n (Standard + Color)"
             except Exception:
@@ -108,7 +108,7 @@ class ParkingAI:
                                 "box": (x1, y1, x2, y2),
                                 "center_x": (x1 + x2) / 2,
                                 "color_noun": color_noun,
-                                "color": color_adj  # z.B. "rote", "blaue", "weiße"
+                                "color": color_adj
                             })
             except Exception:
                 pass
