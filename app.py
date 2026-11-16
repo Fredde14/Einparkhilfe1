@@ -4,9 +4,7 @@ import numpy as np
 import os
 import sys
 
-# Füge Root-Verzeichnis zum Pfad hinzu
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
-
 from models.parking_model import load_parking_model
 
 # --- SEITEN-KONFIGURATION ---
@@ -17,16 +15,13 @@ st.set_page_config(
     initial_sidebar_state="collapsed"
 )
 
-# --- HOCHWERTIGES CUSTOM CSS (EDLES BLAU & VERLÄUFE) ---
+# --- HOCHWERTIGES CUSTOM CSS (EDLES BLAU & VERLÄUFE - UNVERÄNDERT) ---
 st.markdown("""
 <style>
-    /* Hintergrund und globale Schrift */
     .main {
         background: linear-gradient(135deg, #f4f7f6 0%, #e9ecef 100%);
         font-family: 'Inter', sans-serif;
     }
-    
-    /* Edler Header mit Farbverlauf */
     .app-header {
         background: linear-gradient(135deg, #0f2027 0%, #203a43 50%, #2c5364 100%);
         padding: 28px 32px;
@@ -50,8 +45,6 @@ st.markdown("""
         margin: 5px 0 0 0;
         font-size: 1.05rem;
     }
-    
-    /* App Logo Badge */
     .app-logo-badge {
         background: rgba(255, 255, 255, 0.1);
         border: 1px solid rgba(255, 255, 255, 0.2);
@@ -65,8 +58,6 @@ st.markdown("""
         gap: 8px;
         backdrop-filter: blur(5px);
     }
-
-    /* Container Karten */
     .custom-card {
         background-color: #ffffff;
         border-radius: 16px;
@@ -75,8 +66,6 @@ st.markdown("""
         border: 1px solid #e2e8f0;
         margin-bottom: 24px;
     }
-    
-    /* Workflow Stepper */
     .workflow-stepper {
         display: flex;
         justify-content: space-between;
@@ -91,8 +80,6 @@ st.markdown("""
     }
     .step-active { color: #3182ce; border-bottom: 2px solid #3182ce; padding-bottom: 2px; }
     .step-inactive { color: #a0aec0; }
-    
-    /* 2D Parking Simulation View */
     .parking-sim-box {
         background: linear-gradient(135deg, #ebf8ff 0%, #e2e8f0 100%);
         border: 2px dashed #3182ce;
@@ -101,8 +88,6 @@ st.markdown("""
         text-align: center;
         margin-top: 15px;
     }
-
-    /* Streamlit Button Overrides für professionellen Look */
     div.stButton > button {
         background: linear-gradient(135deg, #2b6cb0 0%, #2c5282 100%);
         color: white;
@@ -118,7 +103,6 @@ st.markdown("""
         box-shadow: 0 6px 16px rgba(43, 108, 176, 0.4);
         transform: translateY(-1px);
     }
-
     #MainMenu {visibility: hidden;}
     footer {visibility: hidden;}
 </style>
@@ -147,15 +131,17 @@ st.markdown("""
 </div>
 """, unsafe_allow_html=True)
 
-# Modell laden (gecached)
-model = load_parking_model()
+@st.cache_resource
+def get_model():
+    return load_parking_model()
+
+model = get_model()
 
 # ==============================================================================
-# 1. HOMEBILDSCHIRM (Fahrzeug- & Park-Einstellungen - Direkt beim Start)
+# 1. HOMEBILDSCHIRM (Fahrzeug- & Park-Einstellungen)
 # ==============================================================================
 if st.session_state.page == "home":
-    
-    st.markdown('<div class="workflow-stepper"><span class="step-active">1. Fahrzeugdaten eingeben</span> <span class="step-inactive">→ 2. Foto hochladen → 3. Analyse & Guide</span></div>', unsafe_allow_html=True)
+    st.markdown('<div class="workflow-stepper"><span class="step-active">1. Fahrzeugdaten eingeben</span> <span class="step-inactive">→ 2. Foto & Eckpunkte → 3. Analyse & Guide</span></div>', unsafe_allow_html=True)
     
     col_main, col_preview = st.columns([1.2, 0.8], gap="large")
     
@@ -163,74 +149,55 @@ if st.session_state.page == "home":
         st.markdown('<div class="custom-card">', unsafe_allow_html=True)
         st.subheader("⚙️ Fahrzeug- & Park-Einstellungen")
         st.write("Bitte lege hier zu Beginn die exakten Abmessungen deines Fahrzeugs fest. Diese Werte fließen in die gesamte KI-Berechnung ein.")
-        
         st.markdown("---")
         
-        # Eingabe Autolänge
         car_length = st.slider(
             "📐 Autolänge (in Metern):",
-            min_value=2.5,
-            max_value=6.0,
-            value=float(st.session_state.car_length),
-            step=0.1
+            min_value=2.5, max_value=6.0, value=float(st.session_state.car_length), step=0.1
         )
-        
-        # Eingabe Autobreite
         car_width = st.slider(
             "📐 Autobreite (in Metern):",
-            min_value=1.4,
-            max_value=2.5,
-            value=float(st.session_state.car_width),
-            step=0.1
+            min_value=1.4, max_value=2.5, value=float(st.session_state.car_width), step=0.1
         )
-        
-        # Park-Typ Auswahl
         parking_type = st.selectbox(
             "🅿️ Bevorzugter Park-Typ:",
             ["Längseinparken (Parallel)", "Querseinparken (Senkrecht)"],
             index=0 if "Parallel" in st.session_state.parking_type else 1
         )
         
-        # Speichern im Session State
         st.session_state.car_length = car_length
         st.session_state.car_width = car_width
         st.session_state.parking_type = parking_type
         
         st.markdown("<br>", unsafe_allow_html=True)
-        
         if st.button("🚀 EINPARKHILFE STARTEN", use_container_width=True):
             st.session_state.page = "function"
             st.rerun()
-            
         st.markdown('</div>', unsafe_allow_html=True)
 
     with col_preview:
         st.markdown('<div class="custom-card">', unsafe_allow_html=True)
         st.subheader("📋 System-Übersicht")
-        
         st.info(f"""
         **Aktives Setup:**
         * **Fahrzeuglänge:** `{car_length} m`
         * **Fahrzeugbreite:** `{car_width} m`
         * **Modus:** `{parking_type}`
         """)
-        
         st.markdown("### 💡 Ablauf")
         st.write("""
         1. **Home:** Maße einmalig einstellen & starten.
-        2. **Funktionsbildschirm:** Foto der Parklücke hochladen.
-        3. **Analyse & Guide:** Maßgeschneiderte Einpark-Anleitung erhalten.
+        2. **Funktionsbildschirm:** Foto hochladen & Eckpunkte der Lücke markieren.
+        3. **Analyse & Guide:** Reale Lückenmaße & Einpark-Anleitung erhalten.
         """)
         st.markdown('</div>', unsafe_allow_html=True)
 
 # ==============================================================================
-# 2. & 3. FUNKTIONSBILDSCHIRM (Upload, KI-Analyse & Anleitung)
+# 2. & 3. FUNKTIONSBILDSCHIRM (Upload, Eckpunkt-Kalibrierung, KI & Anleitung)
 # ==============================================================================
 elif st.session_state.page == "function":
+    st.markdown('<div class="workflow-stepper"><span class="step-inactive">1. Fahrzeugdaten</span> → <span class="step-active">2. Foto & Eckpunkte → 3. Analyse & Guide</span></div>', unsafe_allow_html=True)
     
-    st.markdown('<div class="workflow-stepper"><span class="step-inactive">1. Fahrzeugdaten</span> → <span class="step-active">2. Foto hochladen → 3. Analyse & Guide</span></div>', unsafe_allow_html=True)
-    
-    # Navigation zurück zum Homebildschirm
     if st.button("⬅️ Zurück zu den Fahrzeugeinstellungen"):
         st.session_state.page = "home"
         st.rerun()
@@ -239,17 +206,34 @@ elif st.session_state.page == "function":
     
     with col_upload:
         st.markdown('<div class="custom-card">', unsafe_allow_html=True)
-        st.subheader("📸 1. Foto der Parklücke hochladen")
-        st.write("Lade ein Foto der Parklücke hoch, um die automatische Raum- und Lückenanalyse zu starten.")
+        st.subheader("📸 1. Foto & Eckpunkte der Parklücke")
+        st.write("Lade ein Foto hoch und passe die 4 Eckpunkte an die sichtbare Parklücke an.")
         
-        uploaded_file = st.file_uploader(
-            "Wähle eine Bilddatei aus...", 
-            type=["jpg", "jpeg", "png"]
-        )
+        uploaded_file = st.file_uploader("Wähle eine Bilddatei aus...", type=["jpg", "jpeg", "png"])
         
         if uploaded_file is not None:
             image = Image.open(uploaded_file)
-            st.image(image, caption="Hochgeladenes Parklücken-Foto", use_container_width=True)
+            
+            # Eckpunkte & Referenz-Kalibrierung
+            st.markdown("#### 📍 Eckpunkte & Referenz-Kalibrierung")
+            c1, c2 = st.columns(2)
+            with c1:
+                x_range = st.slider("Horizontale Eckpunkte (Links / Rechts %)", 0, 100, (25, 75))
+            with c2:
+                y_range = st.slider("Vertikale Eckpunkte (Oben / Unten %)", 0, 100, (45, 85))
+                
+            ref_car_len = st.slider(
+                "Referenz-Länge der Nachbarautos im Bild (m)",
+                min_value=3.5, max_value=6.5, value=4.5, step=0.1,
+                help="Dient dem Vision-Modell als Maßstab zur Umrechnung von Pixeln in echte Meter."
+            )
+            
+            corner_points = {
+                "x_start": x_range[0],
+                "x_end": x_range[1],
+                "y_top": y_range[0],
+                "y_bottom": y_range[1]
+            }
         else:
             st.warning("Warte auf Foto-Upload...")
         
@@ -260,29 +244,38 @@ elif st.session_state.page == "function":
         st.subheader("🔍 2. KI-Analyseergebnis")
         
         if uploaded_file is not None:
-            with st.spinner("KI analysiert Parklücke und Begrenzungen..."):
+            with st.spinner("Vision-Modell berechnet Perspektive & Eckpunkte..."):
+                gap_length, gap_width, annotated_img, cars_count, active_model = model.analyze_parking_space(
+                    image, corner_points, ref_car_len
+                )
                 
-                gap_size, annotated_img, cars_count = model.analyze_parking_space(image)
-                min_required = st.session_state.car_length + 1.0  # Inklusive Sicherheits-Puffer
+                min_req_length = st.session_state.car_length + 0.8
+                min_req_width = st.session_state.car_width + 0.3
                 
-                st.image(annotated_img, caption=f"Erkannte Objekte: {cars_count} Begrenzungsfahrzeuge", use_container_width=True)
+                st.image(
+                    annotated_img,
+                    caption=f"Modell: {active_model} | Erkannte Referenz-KFZ: {cars_count}",
+                    use_container_width=True
+                )
                 
                 st.markdown("---")
                 
-                if gap_size >= min_required:
-                    st.success(f"✅ **PASST PERFEKT!**\n\nErkannte Lücke: **{gap_size:.1f}m** | Benötigt: **{min_required:.1f}m** (inkl. Puffer)")
-                elif gap_size >= st.session_state.car_length + 0.4:
-                    st.warning(f"⚠️ **SEHR ENG!**\n\nErkannte Lücke: **{gap_size:.1f}m** | Benötigt: **{min_required:.1f}m**. Nur für geübte Fahrer!")
+                fits_length = gap_length >= min_req_length
+                fits_width = gap_width >= min_req_width
+                
+                if fits_length and fits_width:
+                    st.success(f"✅ **PASST PERFEKT!**\n\nBerechnete Lücke: **{gap_length:.1f}m × {gap_width:.1f}m** | Benötigt: **{min_req_length:.1f}m × {min_req_width:.1f}m** (inkl. Puffer)")
+                elif gap_length >= st.session_state.car_length + 0.3:
+                    st.warning(f"⚠️ **SEHR ENG!**\n\nBerechnete Lücke: **{gap_length:.1f}m × {gap_width:.1f}m** | Empfohlen: **{min_req_length:.1f}m × {min_req_width:.1f}m**.")
                 else:
-                    st.error(f"❌ **ZU ENG!**\n\nErkannte Lücke: **{gap_size:.1f}m** | Dein Auto benötigt mind. **{min_required:.1f}m**.")
-
+                    st.error(f"❌ **ZU ENG!**\n\nBerechnete Lücke: **{gap_length:.1f}m × {gap_width:.1f}m** | Dein Auto benötigt mind. **{min_req_length:.1f}m × {min_req_width:.1f}m**.")
         else:
             st.info("Bitte zuerst links ein Foto hochladen, um die Analyse zu aktivieren.")
             
         st.markdown('</div>', unsafe_allow_html=True)
 
     # ==========================================================================
-    # ERWEITERTE ANALYSE & SCHRITT-FÜR-SCHRITT GUIDELINE (Unten)
+    # ERWEITERTE ANALYSE & SCHRITT-FÜR-SCHRITT GUIDELINE
     # ==========================================================================
     if uploaded_file is not None:
         st.markdown('<div class="custom-card">', unsafe_allow_html=True)
@@ -297,15 +290,14 @@ elif st.session_state.page == "function":
                 <div style="font-weight: 700; color: #2b6cb0; font-size: 1.1rem; margin-bottom: 8px;">Berechneter Park-Pfad</div>
                 <div style="font-size: 0.95rem; color: #4a5568; line-height: 1.6;">
                     🚗 <b>Fahrzeugmaße:</b> {st.session_state.car_length}m × {st.session_state.car_width}m<br>
-                    📏 <b>Optimaler Lenkwinkel:</b> 45 Grad<br>
-                    🛡️ <b>Kalkulierter Bordsteinabstand:</b> 0.3m
+                    📏 <b>Gemessene Lücke:</b> {gap_length:.1f}m × {gap_width:.1f}m<br>
+                    🛡️ <b>Restpuffer Länge:</b> {max(0.0, gap_length - st.session_state.car_length):.1f}m
                 </div>
             </div>
             """, unsafe_allow_html=True)
 
         with guide_col2:
             st.markdown("### 📋 Schritt-für-Schritt-Anleitung")
-            
             if "Parallel" in st.session_state.parking_type:
                 st.markdown("""
                 1. **Vorbeifahren & Ausrichten:** Parallel zum vorderen Begrenzungsauto positionieren.
@@ -320,5 +312,4 @@ elif st.session_state.page == "function":
                 3. **Geradeziehen:** Sobald das Auto mittig steht, Lenkrad zentrieren.
                 4. **Bestätigen:** Endposition prüfen und Einparkvorgang abschließen.
                 """)
-
         st.markdown('</div>', unsafe_allow_html=True)
