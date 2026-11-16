@@ -45,7 +45,6 @@ class ParkingAI:
         for i, car in enumerate(detected_cars):
             x1, y1, x2, y2 = car["box"]
             draw.rectangle([x1, y1, x2, y2], outline="#3182ce", width=3)
-            # Nummerierung der Fahrzeuge im Bild für den Kontext
             draw.text((x1 + 5, max(0, y1 - 15)), f"Fahrzeug {i+1}", fill="#63b3ed")
 
         return annotated_img, len(detected_cars), detected_cars, self.model_name
