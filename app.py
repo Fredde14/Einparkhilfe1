@@ -15,7 +15,7 @@ st.set_page_config(
     initial_sidebar_state="collapsed"
 )
 
-# --- HOCHWERTIGES CUSTOM CSS (EDLES BLAU & VERLÄUFE + NEUE COCKPIT-KACHELN) ---
+# --- HOCHWERTIGES CUSTOM CSS (EDLES BLAU & VERLÄUFE) ---
 st.markdown("""
 <style>
     .main {
@@ -81,7 +81,6 @@ st.markdown("""
     .step-active { color: #3182ce; border-bottom: 2px solid #3182ce; padding-bottom: 2px; }
     .step-inactive { color: #a0aec0; }
     
-    /* NEU: Kontraststarke Metric-Cards für schnelle Lesbarkeit im Auto */
     .metric-grid {
         display: grid;
         grid-template-columns: repeat(3, 1fr);
@@ -110,7 +109,6 @@ st.markdown("""
         color: #ffffff;
     }
 
-    /* NEU: Cockpit Schritt-Kacheln */
     .step-tile {
         background: #f8fafc;
         border: 1px solid #cbd5e1;
@@ -193,7 +191,6 @@ st.markdown("""
 </div>
 """, unsafe_allow_html=True)
 
-# Modell direkt laden
 model = load_parking_model()
 
 # ==============================================================================
@@ -247,17 +244,16 @@ if st.session_state.page == "home":
         st.write("""
         1. **Home:** Maße einmalig einstellen.
         2. **Funktionsbildschirm:** Foto (aus ca. 5 m Entfernung) hochladen & reale Parklücke angeben.
-        3. **Anleitung:** Interaktive Cockpit-Schritte anhand der erkannten Begrenzungsautos abrufen.
+        3. **Anleitung:** Interaktive Cockpit-Schritte anhand der erkannten Fahrzeugfarben abrufen.
         """)
         st.markdown('</div>', unsafe_allow_html=True)
 
 # ==============================================================================
-# 2. & 3. FUNKTIONSBILDSCHIRM (Upload, Manuelle Lücke & Cockpit-Anweisungen)
+# 2. & 3. FUNKTIONSBILDSCHIRM (Upload, Maße & Farb-Anweisungen)
 # ==============================================================================
 elif st.session_state.page == "function":
     st.markdown('<div class="workflow-stepper"><span class="step-inactive">1. Fahrzeugdaten</span> → <span class="step-active">2. Foto & Maße → 3. Live-Anleitung</span></div>', unsafe_allow_html=True)
     
-    # Obere Einhand-Navigationsleiste (Zurück + Quick-Reset)
     nav_col1, nav_col2 = st.columns([1, 1])
     with nav_col1:
         if st.button("⬅️ Zurück zu den Fahrzeugeinstellungen", use_container_width=True):
@@ -274,7 +270,7 @@ elif st.session_state.page == "function":
     with col_upload:
         st.markdown('<div class="custom-card">', unsafe_allow_html=True)
         st.subheader("📸 1. Foto & Referenz-Eingabe")
-        st.info("📏 **Aufnahme-Protokoll:** Fotografiere die Parklücke idealerweise aus ca. **5 Metern Entfernung** für optimale Referenz-Erkennung.")
+        st.info("📏 **Aufnahme-Protokoll:** Fotografiere die Parklücke idealerweise aus ca. **5 Metern Entfernung**, damit die KI die Autos und deren Farben optimal erfassen kann.")
         
         uploaded_file = st.file_uploader(
             "Wähle eine Bilddatei aus...",
@@ -299,28 +295,26 @@ elif st.session_state.page == "function":
         
     with col_result:
         st.markdown('<div class="custom-card">', unsafe_allow_html=True)
-        st.subheader("🔍 2. KI-Szenen-Analyse")
+        st.subheader("🔍 2. KI-Szenen- & Farbanalyse")
         
         if uploaded_file is not None:
-            # Mehrstufiger Live-Status-Indikator
-            with st.status("System analysiert Parkszene...", expanded=False) as status:
-                st.write("1. Bild wird für 5m-Referenz-Maßstab normalisiert...")
-                time.sleep(0.25)
-                st.write("2. KI-Modell scannt Begrenzungsfahrzeuge...")
+            with st.status("System analysiert Parkszene & Farben...", expanded=False) as status:
+                st.write("1. Normalisierung & Kalibrierung...")
+                time.sleep(0.2)
+                st.write("2. YOLO-Modell detektiert Fahrzeuge & Farb-Extraktion...")
                 annotated_img, cars_count, detected_cars, active_model = model.analyze_scene(image)
-                st.write("3. Sicherheitsabstände & Einpark-Trajektorie berechnet.")
-                status.update(label="✅ Live-Analyse abgeschlossen", state="complete", expanded=False)
+                st.write("3. Trajektorie & Puffer berechnet.")
+                status.update(label="✅ Farb-Analyse erfolgreich", state="complete", expanded=False)
                 
             st.image(
                 annotated_img,
-                caption=f"Aktives System: {active_model} | Erkannte Begrenzungen: {cars_count}",
+                caption=f"Modell: {active_model} | Erkannte Autos: {cars_count}",
                 use_container_width=True
             )
             
             min_req = st.session_state.car_length + 0.8
             buffer_space = max(0.0, manual_gap_size - st.session_state.car_length)
             
-            # Kontraststarke Metric-Cards
             st.markdown(f"""
             <div class="metric-grid">
                 <div class="metric-box">
@@ -339,18 +333,18 @@ elif st.session_state.page == "function":
             """, unsafe_allow_html=True)
             
             if manual_gap_size >= min_req:
-                st.success(f"✅ **PASST KOMFORTABEL!** Du hast **{buffer_space:.1f} m** Sicherheits-Spielraum zum Einrangieren.")
+                st.success(f"✅ **PASST KOMFORTABEL!** Du hast **{buffer_space:.1f} m** Sicherheits-Spielraum.")
             elif manual_gap_size >= st.session_state.car_length + 0.3:
-                st.warning(f"⚠️ **ENGES MANÖVER!** Nur **{buffer_space:.1f} m** Spielraum – langsam und präzise einlenken.")
+                st.warning(f"⚠️ **ENGES MANÖVER!** Nur **{buffer_space:.1f} m** Spielraum – langsam einlenken.")
             else:
-                st.error(f"❌ **ZU ENG!** Dein Fahrzeug benötigt mindestens **{min_req:.1f} m** inklusive Rangierpuffer.")
+                st.error(f"❌ **ZU ENG!** Dein Fahrzeug benötigt mind. **{min_req:.1f} m**.")
         else:
-            st.info("Bitte zuerst links ein Foto hochladen, um den Live-Scan zu starten.")
+            st.info("Bitte zuerst links ein Foto hochladen, um den Scan zu starten.")
             
         st.markdown('</div>', unsafe_allow_html=True)
 
     # ==========================================================================
-    # 3. INTERAKTIVER COCKPIT-GUIDE (Visuelle Schritt-Kacheln)
+    # 3. INTERAKTIVER COCKPIT-GUIDE (Mit dynamischen Autofarben)
     # ==========================================================================
     if uploaded_file is not None:
         st.markdown('<div class="custom-card">', unsafe_allow_html=True)
@@ -358,11 +352,14 @@ elif st.session_state.page == "function":
         
         guide_col1, guide_col2 = st.columns([0.9, 1.1], gap="large")
         
+        # Extrahiere erkannte Farben für die Anweisungen
+        car1_color = detected_cars[0]["color"] if len(detected_cars) >= 1 else "vordere"
+        car2_color = detected_cars[1]["color"] if len(detected_cars) >= 2 else "hintere"
+        
         with guide_col1:
             st.markdown("### 🎛️ Manöver-Steuerung")
             st.write("Wähle den aktuellen Schritt während des Einparkens aus:")
             
-            # Schnelle Schritt-Auswahl für Einhand-Bedienung
             step_choice = st.radio(
                 "Aktiver Manöver-Schritt:",
                 options=[1, 2, 3, 4],
@@ -375,39 +372,34 @@ elif st.session_state.page == "function":
             st.markdown(f"""
             <div class="parking-sim-box">
                 <div style="font-weight: 800; color: #1a365d; font-size: 1.1rem; margin-bottom: 6px;">
-                    Referenz-Setup (5m Distanz)
+                    Erkannte Umgebungs-Farben
                 </div>
                 <div style="font-size: 0.95rem; color: #2d3748; line-height: 1.6;">
-                    🚘 <b>Modus:</b> {st.session_state.parking_type}<br>
-                    📐 <b>Abmessungen:</b> {st.session_state.car_length}m × {st.session_state.car_width}m<br>
-                    🎯 <b>Ankerpunkte:</b> {cars_count} erkannte Begrenzungsfahrzeuge
+                    🚗 <b>Links / Vorne:</b> {car1_color.capitalize()}s Auto<br>
+                    🚗 <b>Rechts / Hinten:</b> {car2_color.capitalize()}s Auto<br>
+                    🎯 <b>Modus:</b> {st.session_state.parking_type}
                 </div>
             </div>
             """, unsafe_allow_html=True)
 
         with guide_col2:
-            st.markdown("### 📋 Live-Anweisungen")
+            st.markdown("### 📋 Live-Anweisungen (Farbbasiert)")
             
-            # Dynamische Texte je nach Park-Typ & erkannten Fahrzeugen
             if "Parallel" in st.session_state.parking_type:
-                ref_front = "Fahrzeug 1 (vordere Begrenzung)" if cars_count >= 1 else "der vorderen Lückenbegrenzung"
-                ref_back = "Fahrzeug 2 (hintere Begrenzung)" if cars_count >= 2 else "der hinteren Lückenbegrenzung"
                 steps_data = [
-                    ("1. Parallel ausrichten", f"Fahre langsam vor, bis dein Heck auf gleicher Höhe mit <b>{ref_front}</b> steht. Halte ca. 0,5 m Seitenabstand."),
+                    ("1. Parallel ausrichten", f"Fahre langsam vor, bis dein Heck auf gleicher Höhe mit dem <b>{car1_color}en Auto</b> steht. Halte ca. 0,5 m Seitenabstand."),
                     ("2. Voll einschlagen & zurücksetzen", "Lege den Rückwärtsgang ein, schlage das Lenkrad <b>voll nach rechts</b> ein und rolle langsam im 45°-Winkel in die Lücke."),
-                    ("3. Gegenlenken", f"Sobald deine Fahrzeugfront am Heck von <b>{ref_front}</b> vorbei ist, lenke <b>voll nach links</b> ein."),
-                    ("4. Geradeziehen & Abstand prüfen", f"Rolle langsam weiter, bis du parallel zum Bordstein stehst und den Puffer zu <b>{ref_back}</b> optimal verteilt hast.")
+                    ("3. Gegenlenken", f"Sobald deine Fahrzeugfront am Heck des <b>{car1_color}en Autos</b> vorbei ist, lenke <b>voll nach links</b> ein."),
+                    ("4. Geradeziehen & Abstand prüfen", f"Rolle langsam weiter, bis du parallel zum Bordstein stehst und der Abstand zum <b>{car2_color}en Auto</b> optimal passt.")
                 ]
             else:
-                ref_side = "Fahrzeug 1" if cars_count >= 1 else "dem Nachbarfahrzeug"
                 steps_data = [
-                    ("1. Position vor der Lücke", f"Fahre im 90°-Winkel bis kurz hinter <b>{ref_side}</b> vor, sodass dein Heck zur Lückenmitte zeigt."),
+                    ("1. Position vor der Lücke", f"Fahre im 90°-Winkel bis kurz hinter das <b>{car1_color}e Auto</b> vor, sodass dein Heck zur Lückenmitte zeigt."),
                     ("2. Rückwärts einlenken", "Rückwärtsgang einlegen, Lenkrad voll in Richtung Lücke einschlagen und langsam anrollen."),
-                    ("3. Fahrzeug zentrieren", f"Sobald du parallel neben <b>{ref_side}</b> stehst, Lenkrad komplett gerade stellen."),
+                    ("3. Fahrzeug zentrieren", f"Sobald du parallel neben dem <b>{car1_color}en Auto</b> stehst, Lenkrad komplett gerade stellen."),
                     ("4. Endposition erreichen", "Gerade zurücksetzen, bis die Fahrzeugfront bündig abschließt, und sichern.")
                 ]
                 
-            # Rendern der visuellen Cockpit-Kacheln
             for idx, (title, desc) in enumerate(steps_data, start=1):
                 active_class = "step-tile step-tile-active" if idx == st.session_state.active_step else "step-tile"
                 badge = " 🟢 AKTIV" if idx == st.session_state.active_step else ""
