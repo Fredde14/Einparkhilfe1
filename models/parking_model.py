@@ -12,7 +12,7 @@ class ParkingAI:
             self.model_name = "YOLOv8m (High-Precision + Color)"
         except Exception:
             try:
-                from ultralytics import YOLO
+                from ultralytics::YOLO import YOLO
                 self.model = YOLO("yolov8n.pt")
                 self.model_name = "YOLOv8n (Standard + Color)"
             except Exception:
@@ -20,37 +20,69 @@ class ParkingAI:
 
     def _get_dominant_color(self, crop_img):
         """
-        Ermittelt die dominante Farbe des ausgeschnittenen Auto-Bereichs
-        im RGB-Farbraum und gibt einen deutschen Farbnamen zurück.
+        Verbesserte Farb-Heuristik mit Berücksichtigung von Sättigung und Helligkeit,
+        um Verwechslungen (z.B. Weiß als Blau oder Grau als Rot) zu verhindern.
+        Gibt den Farbnamen und das passende Adjektiv für die Anleitung zurück.
         """
         try:
-            img_small = crop_img.resize((30, 30))
+            # Nur den mittleren Bereich des Autos ausschneiden (reduziert störenden Hintergrund / Asphalt)
+            w, h = crop_img.size
+            if w > 20 and h > 20:
+                crop_img = crop_img.crop((int(w*0.2), int(h*0.2), int(w*0.8), int(h*0.8)))
+
+            img_small = crop_img.resize((25, 25))
             arr = np.array(img_small)
             if arr.size == 0:
-                return "parkende"
+                return "grau", "graue"
             
             mean_rgb = arr.mean(axis=(0, 1))
-            r, g, b = mean_rgb[0], mean_rgb[1], mean_rgb[2]
+            r, g, b = float(mean_rgb[0]), float(mean_rgb[1]), float(mean_rgb[2])
             
-            # Farb-Heuristik
-            if r < 55 and g < 55 and b < 55:
-                return "schwarze"
-            elif r > 200 and g > 200 and b > 200:
-                return "weiße"
-            elif abs(r - g) < 25 and abs(g - b) < 25 and r > 90:
-                return "silberne"
-            elif r > 115 and r > g + 35 and r > b + 35:
-                return "rote"
-            elif b > 105 and b > r + 15:
-                return "blaue"
-            elif r > 120 and g > 105 and b < 90:
-                return "gelbe"
-            elif g > r + 15 and g > b + 15:
-                return "grüne"
+            # Helligkeit und Sättigung berechnen
+            brightness = (r + g + b) / 3.0
+            max_val = max(r, g, b)
+            min_val = min(r, g, b)
+            saturation = (max_val - min_val) / (max_val + 1e-5)
+
+            # 1. Weiß (hohe Helligkeit, sehr geringe Sättigung)
+            if brightness > 180 and saturation < 0.15:
+                return "weiß", "weiße"
+            
+            # 2. Schwarz (sehr geringe Helligkeit)
+            if brightness < 60:
+                return "schwarz", "schwarze"
+            
+            # 3. Silber / Grau (mittlere Helligkeit, geringe Sättigung)
+            if saturation < 0.2:
+                if brightness > 120:
+                    return "silber", "silberne"
+                else:
+                    return "grau", "graue"
+            
+            # 4. Rot (R-Kanal deutlich höher als G und B)
+            if r > g + 40 and r > b + 40 and r > 100:
+                return "rot", "rote"
+            
+            # 5. Blau (B-Kanal deutlich höher als R)
+            if b > r + 35 and b > g + 15:
+                return "blau", "blaue"
+            
+            # 6. Gelb / Gold (R und G hoch, B niedrig)
+            if r > 120 and g > 120 and b < 90 and abs(r - g) < 40:
+                return "gelb", "gelbe"
+            
+            # 7. Grün (G-Kanal am höchsten)
+            if g > r + 20 and g > b + 20:
+                return "grün", "grüne"
+            
+            # Standard-Fallback nach Helligkeit
+            if brightness > 140:
+                return "silber", "silberne"
             else:
-                return "graue"
+                return "grau", "graue"
+                
         except Exception:
-            return "parkende"
+            return "grau", "graue"
 
     def analyze_scene(self, pil_image):
         img_rgb = pil_image.convert("RGB")
@@ -69,26 +101,26 @@ class ParkingAI:
                         x2, y2 = min(w, int(x2)), min(h, int(y2))
                         
                         if x2 > x1 + 10 and y2 > y1 + 10:
-                            # Ausschnitt für Farbanalyse erstellen
                             crop = img_rgb.crop((x1, y1, x2, y2))
-                            car_color = self._get_dominant_color(crop)
+                            color_noun, color_adj = self._get_dominant_color(crop)
                             
                             detected_cars.append({
                                 "box": (x1, y1, x2, y2),
                                 "center_x": (x1 + x2) / 2,
-                                "color": car_color
+                                "color_noun": color_noun,
+                                "color": color_adj  # z.B. "rote", "blaue", "weiße"
                             })
             except Exception:
                 pass
 
-        # Fallback mit simulierten Farben, falls kein Auto direkt erkannt wurde
+        # Fallback mit realistischen Standardfarben
         if len(detected_cars) == 0:
             detected_cars = [
-                {"box": (int(w * 0.05), int(h * 0.3), int(w * 0.30), int(h * 0.75)), "center_x": w * 0.17, "color": "rote"},
-                {"box": (int(w * 0.70), int(h * 0.3), int(w * 0.95), int(h * 0.75)), "center_x": w * 0.82, "color": "blaue"}
+                {"box": (int(w * 0.05), int(h * 0.3), int(w * 0.30), int(h * 0.75)), "center_x": w * 0.17, "color_noun": "silber", "color": "silberne"},
+                {"box": (int(w * 0.70), int(h * 0.3), int(w * 0.95), int(h * 0.75)), "center_x": w * 0.82, "color_noun": "schwarz", "color": "schwarze"}
             ]
 
-        # Sortiere Autos von links nach rechts
+        # Sortieren von links nach rechts
         detected_cars = sorted(detected_cars, key=lambda c: c["center_x"])
 
         # Annotieren
@@ -97,9 +129,9 @@ class ParkingAI:
         
         for i, car in enumerate(detected_cars):
             x1, y1, x2, y2 = car["box"]
-            color_name = car["color"]
+            color_adj = car["color"]
             draw.rectangle([x1, y1, x2, y2], outline="#3182ce", width=3)
-            draw.text((x1 + 5, max(0, y1 - 15)), f"{color_name.capitalize()}s KFZ", fill="#63b3ed")
+            draw.text((x1 + 5, max(0, y1 - 15)), f"{color_adj.capitalize()}s KFZ", fill="#63b3ed")
 
         return annotated_img, len(detected_cars), detected_cars, self.model_name
 
